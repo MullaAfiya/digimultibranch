@@ -1,8 +1,3 @@
-# ASP.NET
-# Build and test ASP.NET projects.
-# Add steps that publish symbols, save build artifacts, deploy, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/apps/aspnet/build-aspnet-4
-
 trigger:
   - '*'   # pipeline should be triggered on any changes to the repository (any branch)
 pr:
@@ -17,7 +12,6 @@ jobs:
     solution: '**/*.sln'
     buildPlatform: 'Any CPU'
     buildConfiguration: 'Release'
-    system.debug: true
 
   steps:
   - task: NuGetToolInstaller@1
@@ -38,46 +32,52 @@ jobs:
       platform: '$(buildPlatform)'
       configuration: '$(buildConfiguration)'
 
-  - task: PublishBuildArtifacts@1
+  - task: CopyFiles@2
     inputs:
-      pathtoPublish: '$(Build.ArtifactStagingDirectory)'
-      artifactName: 'drop'
-      publishLocation: 'Container'
+     SourceFolder: '$(Build.ArtifactStagingDirectory)'
+     Contents: '**'
+     TargetFolder: 'C:/AfiyaAgentAzure/New folder/_work/14/ArtifactFolder'
 
-- job: Deploy
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: '$(Pipeline.Workspace)'
+      artifact: 'Drop'
+      publishLocation: 'pipeline'
+
+- job: DeployUAT
+  displayName: 'Deploy to UAT'
+  dependsOn: Build
+  condition: eq(variables['Build.SourceBranchName'], 'main')
   pool:
     name: Default
-
   steps:
-  - checkout: self # checks out the source code from the repository
-  - script: |
-      if [ "$(Build.SourceBranchName)" == "main" ]; then
-        echo "Deploying to UAT server..."
-        - task: AzureRmWebAppDeployment@4
-          inputs:
-            ConnectionType: 'AzureRM'
-            azureSubscription: 'Free Trial(6c3e4386-799c-4546-96a2-1cb6c673dc85)'
-            appType: 'webApp'
-            WebAppName: 'DigitalSignature'
-            deployToSlotOrASE: true
-            ResourceGroupName: 'ClWebAPI_group'
-            SlotName: 'production'
-            packageForLinux: '$(System.DefaultWorkingDirectory)/**/*.zip'
-        # Add commands to deploy to UAT server
-      elif [ "$(Build.SourceBranchName)" == "production" ]; then
-        echo "Deploying to Production server..."
-        # Add commands to deploy to Production server
-        - task: AzureRmWebAppDeployment@4
-          inputs:
-            ConnectionType: 'AzureRM'
-            azureSubscription: 'Free Trial(6c3e4386-799c-4546-96a2-1cb6c673dc85)'
-            appType: 'webApp'
-            WebAppName: 'DigitalSignatureProd'
-            deployToSlotOrASE: true
-            ResourceGroupName: 'ClWebAPI_group'
-            SlotName: 'production'
-            packageForLinux: '$(System.DefaultWorkingDirectory)/**/*.zip'
+  - task: AzureRmWebAppDeployment@4
+    displayName: 'Deploy to UAT web app'
+    inputs:
+      ConnectionType: 'AzureRM'
+      azureSubscription: 'Free Trial(6c3e4386-799c-4546-96a2-1cb6c673dc85)'
+      appType: 'webApp'
+      WebAppName: 'DigitalSignature'
+      deployToSlotOrASE: true
+      ResourceGroupName: 'ClWebAPI_group'
+      SlotName: 'uat'
+      packageForLinux: 'C:/AfiyaAgentAzure/New folder/_work/14/ArtifactFolder/**/*.zip'
 
-      else
-        echo "No deployment for branch $(Build.SourceBranchName)"
-      fi
+- job: DeployProd
+  displayName: 'Deploy to Production'
+  dependsOn: Build
+  condition: eq(variables['Build.SourceBranchName'], 'production')
+  pool:
+    name: Default
+  steps:
+  - task: AzureRmWebAppDeployment@4
+    displayName: 'Deploy to Production web app'
+    inputs:
+      ConnectionType: 'AzureRM'
+      azureSubscription: 'Free Trial(6c3e4386-799c-4546-96a2-1cb6c673dc85)'
+      appType: 'webApp'
+      WebAppName: 'DigitalSignatureProd'
+      deployToSlotOrASE: true
+      ResourceGroupName: 'ClWebAPI_group'
+      SlotName: 'production'
+      packageForLinux: 'C:/AfiyaAgentAzure/New folder/_work/14/ArtifactFolder/**/*.zip'
